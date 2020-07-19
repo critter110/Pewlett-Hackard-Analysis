@@ -230,3 +230,81 @@ FROM retirement_info as re
 INNER JOIN dept_info as di
 ON (re.emp_no = di.emp_no)
 WHERE (di.dept_name = 'Sales') OR (di.dept_name = 'Development');
+
+--Challenge starts here
+
+--Create a table of number of employees retireing by title
+SELECT ti.title,
+	e.emp_no,
+	e.first_name,
+	e.last_name,
+	e.salary,
+	ti.from_date
+INTO ret_emp_by_title
+FROM emp_info as e
+INNER JOIN titles as ti
+ON (e.emp_no = ti.emp_no)
+ORDER BY ti.title;
+
+SELECT * FROM ret_emp_by_title;	
+
+-- Partition the data to show only most recent title per employee
+SELECT title,
+ 	emp_no,
+ 	first_name,
+ 	last_name,
+ 	salary,
+	from_date
+INTO retirees_most_recent_job
+FROM
+ (SELECT rt.title,
+ 	rt.emp_no,
+ 	rt.first_name,
+ 	rt.last_name,
+ 	rt.salary,
+  	rt.from_date, ROW_NUMBER() OVER
+ (PARTITION BY (rt.emp_no)
+ ORDER BY rt.from_date DESC) rn
+ FROM ret_emp_by_title as rt
+ ) tmp WHERE rn = 1
+ORDER BY emp_no;
+
+--Creating counts by title table
+SELECT COUNT(r.emp_no), r.title
+INTO counts_by_title
+FROM retirees_most_recent_job as r
+GROUP BY r.title;
+
+--Creating mentorship eligibility table
+SELECT e.emp_no,
+	e.first_name,
+	e.last_name,
+	ti.title,
+	ti.from_date,
+	ti.to_date
+INTO mentor_eligibility
+FROM employees as e
+INNER JOIN titles as ti
+ON (e.emp_no = ti.emp_no)
+WHERE e.birth_date BETWEEN '1965-01-01' AND '1965-12-31';
+
+--fixing duplicates in the mentor eligibility table
+SELECT emp_no,
+	first_name,
+	last_name,
+	title,
+	from_date,
+	to_date
+INTO mentor_elig_no_dups
+FROM
+ (SELECT me.emp_no,
+	me.first_name,
+	me.last_name,
+	me.title,
+	me.from_date,
+	me.to_date, ROW_NUMBER() OVER
+ (PARTITION BY (me.emp_no)
+ ORDER BY to_date DESC) rn
+ FROM mentor_eligibility as me
+ ) tmp WHERE rn = 1
+ORDER BY emp_no;
